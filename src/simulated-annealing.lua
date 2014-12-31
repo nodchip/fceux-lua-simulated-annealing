@@ -1,4 +1,7 @@
-local START_FRAME = 196;
+--- An implementation of Simulated Annealing for FCEUX Lua Script to search input sequence automatically.
+-- Written by nodchip
+-- 2014, December 24th.
+local START_FRAME = 362;
 local HARDNESS = 1e-0;
 local TIME_LIMIT_SECS = 10.0;
 local FRAMES_PER_WINDOW = 10;
@@ -37,7 +40,7 @@ local JOYPAD_TO_PROBABILITY = {
   [JOYPAD_RIGHT] = PROBABILITY_RIGHT,
 };
 
-local SEARCH_WINDOW_SIZE = 180;
+local SEARCH_WINDOW_SIZE = 4 * 60;
 local SEARCH_STEP = 60;
 
 --------------------------------------------------------------------------------
@@ -144,8 +147,13 @@ local function setJoypadSequence(startFrame, endFrame, joypadSequence)
   taseditor.setplayback(0);
 
   for frame = startFrame, endFrame - 1, FRAMES_PER_WINDOW do
-    local joypad = joypadSequence[frame];
     for delta = 0, FRAMES_PER_WINDOW - 1 do
+      local joypad = joypadSequence[frame];
+      -- Please uncomment out to fire the B button.
+--      joypad = AND(joypad, 0xff - JOYPAD_B);
+--      if (frame + delta) % 2 == 0 then
+--      	joypad = OR(joypad, JOYPAD_B);
+--      end
       taseditor.submitinputchange(frame + delta, 1, joypad);
     end
   end
@@ -341,18 +349,61 @@ local function calculateEnergy(state)
   
   finest("taseditor.setplayback(startFrame);");
   taseditor.setplayback(startFrame);
-  
+
+  -- For Super Mario Bros.  
   for frame = startFrame, endFrame - 1 do
     finest("emu.frameadvance();");
     emu.frameadvance();
     finest("emu.frameadvance(); exit");
   end
-  
+
   finest("mx");
   local mx = memory.readbyte(0x0086)+(255*memory.readbyte(0x006D));
   local my = memory.readbyte(0x00CE);
-  
+
   return -1.0 * mx;
+
+  -- For Balloon Fight.
+--  local previousC9 = memory.readbyte(0x00c9);
+--  finest("previousC9", previousC9);
+--  local shift = 0;
+--  for frame = startFrame, endFrame - 1 do
+--    finest("emu.frameadvance();");
+--    emu.frameadvance();
+--    finest("emu.frameadvance(); exit");
+--
+--    local c9 = memory.readbyte(0x00c9);
+--    if previousC9 == 0xff and c9 == 0 then
+--      shift = shift + 256;
+--    end
+--    previousC9 = c9;
+--    finest("previousC9", previousC9);
+--  end
+--  
+--  return -10.0 * (previousC9 + shift) + math.max(0, math.abs(y - 96) - 64);
+
+  -- For TwinBee.
+--  for frame = startFrame, endFrame - 1 do
+--    finest("emu.frameadvance();");
+--    emu.frameadvance();
+--    finest("emu.frameadvance(); exit");
+--
+--    local rest = memory.readbyte(0x0080);
+--    finest("rest", rest);
+--    if rest ~= 3 then
+--      return -100.0 * frame;
+--    end
+--
+--    local death = memory.readbyte(0x0012);
+--    finest("death", rest);
+--    if death == 51 then
+--      return -100.0 * frame;
+--    end
+--  end
+--
+--  local x = memory.readbyte(0x00c3);
+--  local y = memory.readbyte(0x00c4);
+--  return -100.0 * endFrame + math.abs(x - 120) + math.abs(y - 200);
 end
 
 --- Applies Simulated Annealing between startFrame (inclusive) and endFrame (eclusive)
@@ -393,11 +444,11 @@ local function anneal(startFrame, endFrame)
         minEnergy = energyNeighbor;
         result = copytable(state);
       end
-      info(string.format("Accepted %.5f -> %.5f : minEnergy=%.5f", energy, energyNeighbor, minEnergy));
+      info(string.format("+++ Accepted %.5f -> %.5f : minEnergy=%.5f", energy, energyNeighbor, minEnergy));
       energy = energyNeighbor;
     else
       -- Decline
-      info("Declined");
+      info(string.format("--- Declined %.5f -> %.5f : minEnergy=%.5f", energy, energyNeighbor, minEnergy));
     end
     counter = counter + 1;
     timeCurrent = os.clock();
@@ -422,8 +473,8 @@ finest("emu.speedmode();");
 emu.speedmode("turbo");
 emu.speedmode("maximum");
 
-local initialJoypadSequence = generateRandomJoypadSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE);
-setJoypadSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE, initialJoypadSequence);
+--local initialJoypadSequence = generateRandomJoypadSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE);
+--setJoypadSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE, initialJoypadSequence);
 for step = 0, 0xffff do
   local startFrame = START_FRAME + SEARCH_STEP * step;
   local endFrame = startFrame + SEARCH_WINDOW_SIZE;
@@ -436,11 +487,13 @@ for step = 0, 0xffff do
 
   -- Playback all the frames to avoid pause.
   finest("taseditor.setplayback(startFrame);");
-  taseditor.setplayback(0);
+  taseditor.setplayback(startFrame);
   
-  for frame = 0, endFrame - 1 do
+  for frame = startFrame, endFrame - 1 do
     finest("emu.frameadvance();");
     emu.frameadvance();
     finest("emu.frameadvance(); exit");
   end
 end
+
+taseditor.stopseeking();
