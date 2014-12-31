@@ -43,6 +43,8 @@ local INPUT_TO_PROBABILITY = {
 local SEARCH_WINDOW_SIZE = 4 * 60;
 local SEARCH_STEP = 60;
 
+local NUMBER_OF_PLAYERS = 1;
+
 --------------------------------------------------------------------------------
 -- Logging
 --------------------------------------------------------------------------------
@@ -60,9 +62,9 @@ local LOGGING_LEVEL = LEVEL_INFO;
 --- Prints the argument if the level <= LOGGING_LEVEL
 -- @param #number level Logging level
 local function log(level, ...)
-	if level <= LOGGING_LEVEL then
-		print(...)
-	end
+  if level <= LOGGING_LEVEL then
+    print(...)
+  end
 end
 
 --- Prints the argument if the LEVEL_SEVERE <= LOGGING_LEVEL
@@ -121,63 +123,75 @@ local function generateRandomInput()
   return input;
 end
 
---- Generates the sequence of random input (the combinations of pushed buttons)
+--- Generates the sequence of random input (the combinations of pushed buttons) for each joypad
 -- @param #number startFrame Frame number of the start frame.
 -- @param #number endFrame Frame number of the end frame. The input of this frame is not generated.
--- @return #map<#keyvalue,#valuetype> Map from frame numbers to input.
-local function generateRandomInputSequence(startFrame, endFrame)
-  finer(string.format("generateRandomInputSequence(%d, %d)", startFrame, endFrame));
+-- @return #map<#number,#map<#number,#number> > Map from frame numbers to input for each joypad.
+local function generateRandomInputSequences(startFrame, endFrame)
+  finer(string.format("generateRandomInputSequences(%d, %d)", startFrame, endFrame));
 
-  local inputSequence = {};
-  for frame = startFrame, endFrame - 1, FRAMES_PER_WINDOW do
-    inputSequence[frame] = generateRandomInput();
+  local inputSequences = {}
+  for joypad = 1, NUMBER_OF_PLAYERS do
+    local inputSequence = {};
+    for frame = startFrame, endFrame - 1, FRAMES_PER_WINDOW do
+      inputSequence[frame] = generateRandomInput();
+    end
+    inputSequences[joypad] = inputSequence;
   end
 
-  return inputSequence;
+  return inputSequences;
 end
 
---- Sets the sequence of input (the combinations of pushed buttons) to the TAS Editor
+--- Sets the sequence of input (the combinations of pushed buttons) to the TAS Editor for each joypad
 -- @param #number startFrame Frame number of the start frame.
 -- @param #number endFrame Frame number of the end frame. The input of this frame is not generated.
-local function setInputSequence(startFrame, endFrame, inputSequence)
-  finer(string.format("setInputSequence(%d, %d, ...)", startFrame, endFrame));
+local function setInputSequences(startFrame, endFrame, inputSequences)
+  finer(string.format("setInputSequences(%d, %d, ...)", startFrame, endFrame));
 
   -- Set the playback frame to startFrame
   -- to avoid the "cannot resume non-suspended coroutine" error.
   taseditor.setplayback(0);
 
-  for frame = startFrame, endFrame - 1, FRAMES_PER_WINDOW do
-    for delta = 0, FRAMES_PER_WINDOW - 1 do
-      local input = inputSequence[frame];
-      -- Please uncomment out to fire the B button.
---      input = AND(input, 0xff - INPUT_B);
---      if (frame + delta) % 2 == 0 then
---      	input = OR(input, INPUT_B);
---      end
-      taseditor.submitinputchange(frame + delta, 1, input);
+  for joypad = 1, NUMBER_OF_PLAYERS do
+    local inputSequence = inputSequences[joypad];
+    for frame = startFrame, endFrame - 1, FRAMES_PER_WINDOW do
+      for delta = 0, FRAMES_PER_WINDOW - 1 do
+        local input = inputSequence[frame];
+        -- Please uncomment out to fire the B button.
+--        input = AND(input, 0xff - INPUT_B);
+--        if (frame + delta) % 2 == 0 then
+--          input = OR(input, INPUT_B);
+--        end
+        taseditor.submitinputchange(frame + delta, joypad, input);
+      end
     end
   end
 
   taseditor.applyinputchanges();
 end
 
---- Gets the sequence of input (the combinations of pushed buttons) from the TAS Editor
+--- Gets the sequence of input (the combinations of pushed buttons) from the TAS Editor for each joypad
 -- @param #number startFrame Frame number of the start frame.
 -- @param #number endFrame Frame number of the end frame. The input of this frame is not set.
-local function getInputSequence(startFrame, endFrame)
-  finer("getInputSequence()");
+-- @return #map<#number,#map<#number,#number> > Map from frame numbers to input for each joypad.
+local function getInputSequences(startFrame, endFrame)
+  finer("getInputSequences()");
 
-  inputSequence = {};
-  for frame = startFrame, endFrame - 1 do
-    input = taseditor.getinput(frame, 1);
-    finest(string.format("frame:%d input:%d", frame, input));
-    if input == -1 then
-      input = 0;
+  local inputSequences = {};
+  for joypad = 1, NUMBER_OF_PLAYERS do
+    local inputSequence = {};
+    for frame = startFrame, endFrame - 1 do
+      local input = taseditor.getinput(frame, joypad);
+      finest(string.format("joypad:%d frame:%d input:%d", joypad, frame, input));
+      if input == -1 then
+        input = 0;
+      end
+      inputSequence[frame] = input;
     end
-    inputSequence[frame] = input;
+    inputSequences[joypad] = inputSequence;
   end
 
-  return inputSequence;
+  return inputSequences;
 end
 
 --------------------------------------------------------------------------------
@@ -211,11 +225,11 @@ end
 local function generateInitialState(startFrame, endFrame)
   finer("generateInitialState()");
 
-  local inputSequence = getInputSequence(startFrame, endFrame);
+  local inputSequences = getInputSequences(startFrame, endFrame);
   return {
     startFrame = startFrame,
     endFrame = endFrame,
-    inputSequence = inputSequence;
+    inputSequences = inputSequences;
   };
 end
 
@@ -242,19 +256,22 @@ local function generateNeighborState(state)
   local endFrame = state.endFrame;
   local neighborState = nil;
   while true do
+    local joypad = math.random(1, NUMBER_OF_PLAYERS);
     local mode = math.random(5);
     if mode == 1 then
       -- Change a input in inputSequence.
       local frame = getRandomFrame(startFrame, endFrame);
       local input = generateRandomInput();
-      if state.inputSequence[frame] ~= input then
-        info(string.format("Change frame:%d %d -> %d", frame, state.inputSequence[frame], input));
-        local inputSequence = copytable(state.inputSequence);
+      if state.inputSequences[joypad][frame] ~= input then
+        info(string.format("Change joypad:%d frame:%d %d -> %d", joypad, frame, state.inputSequences[joypad][frame], input));
+        local inputSequence = copytable(state.inputSequences[joypad]);
         inputSequence[frame] = input;
+        local inputSequences = copytable(state.inputSequences);
+        inputSequences[joypad] = inputSequence;
         return {
           startFrame = startFrame,
           endFrame = endFrame,
-          inputSequence = inputSequence
+          inputSequences = inputSequences
         };
       end
       
@@ -262,16 +279,18 @@ local function generateNeighborState(state)
       -- Swap 2 input.
       local frame1 = getRandomFrame(startFrame, endFrame);
       local frame2 = getRandomFrame(startFrame, endFrame);
-      if state.inputSequence[frame1] ~= state.inputSequence[frame2] then
-        info(string.format("Swap frame:%d <-> %d", frame1, frame2));
-        local inputSequence = copytable(state.inputSequence);
+      if state.inputSequences[joypad][frame1] ~= state.inputSequences[joypad][frame2] then
+        info(string.format("Swap joypad:%d frame:%d <-> %d", joypad, frame1, frame2));
+        local inputSequence = copytable(state.inputSequences[joypad]);
         local temp = inputSequence[frame1];
         inputSequence[frame1] = inputSequence[frame2];
         inputSequence[frame2] = temp;
+        local inputSequences = copytable(state.inputSequences);
+        inputSequences[joypad] = inputSequence;
         return {
           startFrame = startFrame,
           endFrame = endFrame,
-          inputSequence = inputSequence
+          inputSequences = inputSequences
         };
       end
       
@@ -280,19 +299,21 @@ local function generateNeighborState(state)
       local frame1 = getRandomFrame(startFrame, endFrame);
       local frame2 = getRandomFrame(startFrame, endFrame);
       local frame3 = getRandomFrame(startFrame, endFrame);
-      if state.inputSequence[frame1] ~= state.inputSequence[frame2] and
-         state.inputSequence[frame2] ~= state.inputSequence[frame3] and
-         state.inputSequence[frame3] ~= state.inputSequence[frame1] then
-        info(string.format("Swap frame:%d <-> %d <-> %d", frame1, frame2, frame3));
-        local inputSequence = copytable(state.inputSequence);
+      if state.inputSequences[joypad][frame1] ~= state.inputSequences[joypad][frame2] and
+         state.inputSequences[joypad][frame2] ~= state.inputSequences[joypad][frame3] and
+         state.inputSequences[joypad][frame3] ~= state.inputSequences[joypad][frame1] then
+        info(string.format("Swap joypad:%d frame:%d <-> %d <-> %d", joypad, frame1, frame2, frame3));
+        local inputSequence = copytable(state.inputSequences[joypad]);
         local temp = inputSequence[frame1];
         inputSequence[frame1] = inputSequence[frame2];
         inputSequence[frame2] = inputSequence[frame3];
         inputSequence[frame3] = temp;
+        local inputSequences = copytable(state.inputSequences);
+        inputSequences[joypad] = inputSequence;
         return {
           startFrame = startFrame,
           endFrame = endFrame,
-          inputSequence = inputSequence
+          inputSequences = inputSequences
         };
       end
       
@@ -300,32 +321,36 @@ local function generateNeighborState(state)
       -- Insert a input.
       local insertionFrame = getRandomFrame(startFrame, endFrame);
       local input = generateRandomInput();
-      info(string.format("Insert frame:%d input:%d", insertionFrame, input));
-      local inputSequence = copytable(state.inputSequence);
+      info(string.format("Insert joypad:%d frame:%d input:%d", joypad, insertionFrame, input));
+      local inputSequence = copytable(state.inputSequences[joypad]);
       for frame = endFrame - 1, insertionFrame + 1, -1 do
         inputSequence[frame] = inputSequence[frame - 1];
       end
       inputSequence[insertionFrame] = input;
+      local inputSequences = copytable(state.inputSequences);
+      inputSequences[joypad] = inputSequence;
       return {
         startFrame = startFrame,
         endFrame = endFrame,
-        inputSequence = inputSequence
+        inputSequences = inputSequences
       };
       
     elseif mode == 5 then
       -- Remove a input.
       local removedFrame = getRandomFrame(startFrame, endFrame);
       local input = generateRandomInput();
-      info(string.format("Remove frame:%d input:%d", removedFrame, input));
-      local inputSequence = copytable(state.inputSequence);
+      info(string.format("Remove joypad:%d frame:%d input:%d", joypad, removedFrame, input));
+      local inputSequence = copytable(state.inputSequences[joypad]);
       for frame = removedFrame, endFrame - 2 do
         inputSequence[frame] = inputSequence[frame + 1];
       end
       inputSequence[endFrame] = input;
+      local inputSequences = copytable(state.inputSequences);
+      inputSequences[joypad] = inputSequence;
       return {
         startFrame = startFrame,
         endFrame = endFrame,
-        inputSequence = inputSequence
+        inputSequences = inputSequences
       };
     end
   end
@@ -342,10 +367,11 @@ end
 -- @param #number state Given state
 local function calculateEnergy(state)
   finer("calculateEnergy()");
+  finest("state", state);
 
   local startFrame = state.startFrame;
   local endFrame = state.endFrame;
-  setInputSequence(startFrame, endFrame, state.inputSequence);
+  setInputSequences(startFrame, endFrame, state.inputSequences);
   
   finest("taseditor.setplayback(startFrame);");
   taseditor.setplayback(startFrame);
@@ -473,17 +499,18 @@ finest("emu.speedmode();");
 emu.speedmode("turbo");
 emu.speedmode("maximum");
 
---local initialInputSequence = generateRandomInputSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE);
---setInputSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE, initialInputSequence);
+local initialInputSequences = generateRandomInputSequences(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE);
+setInputSequences(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE, initialInputSequences);
+
 for step = 0, 0xffff do
   local startFrame = START_FRAME + SEARCH_STEP * step;
   local endFrame = startFrame + SEARCH_WINDOW_SIZE;
   info(string.format("step:%d startFrame:%d endFrame:%d", step, startFrame, endFrame));
-  local inputSequence = generateRandomInputSequence(endFrame - SEARCH_STEP, endFrame);
-  setInputSequence(endFrame - SEARCH_STEP, endFrame, inputSequence);
+  local inputSequences = generateRandomInputSequences(endFrame - SEARCH_STEP, endFrame);
+  setInputSequences(endFrame - SEARCH_STEP, endFrame, inputSequences);
   local state = anneal(startFrame, endFrame);
   
-  setInputSequence(startFrame, endFrame, state.inputSequence)
+  setInputSequences(startFrame, endFrame, state.inputSequences)
 
   -- Playback all the frames to avoid pause.
   finest("taseditor.setplayback(startFrame);");
