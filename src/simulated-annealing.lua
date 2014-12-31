@@ -101,13 +101,13 @@ local function finest(...)
 end
 
 --------------------------------------------------------------------------------
--- Joypad and input sequence library.
+-- Input and input sequence library.
 --------------------------------------------------------------------------------
 
 --- Generates a random input (the combination of pushed buttons)
 -- @return #number Random input. The return value can be passed to taseditor.submitinputchange().
-local function generateRandomJoypad()
-  finer("generateRandomJoypad()");
+local function generateRandomInput()
+  finer("generateRandomInput()");
 
   input = 0;
   for key, probability in pairs(INPUT_TO_PROBABILITY) do
@@ -125,12 +125,12 @@ end
 -- @param #number startFrame Frame number of the start frame.
 -- @param #number endFrame Frame number of the end frame. The input of this frame is not generated.
 -- @return #map<#keyvalue,#valuetype> Map from frame numbers to input.
-local function generateRandomJoypadSequence(startFrame, endFrame)
-  finer(string.format("generateRandomJoypadSequence(%d, %d)", startFrame, endFrame));
+local function generateRandomInputSequence(startFrame, endFrame)
+  finer(string.format("generateRandomInputSequence(%d, %d)", startFrame, endFrame));
 
   local inputSequence = {};
   for frame = startFrame, endFrame - 1, FRAMES_PER_WINDOW do
-    inputSequence[frame] = generateRandomJoypad();
+    inputSequence[frame] = generateRandomInput();
   end
 
   return inputSequence;
@@ -139,8 +139,8 @@ end
 --- Sets the sequence of input (the combinations of pushed buttons) to the TAS Editor
 -- @param #number startFrame Frame number of the start frame.
 -- @param #number endFrame Frame number of the end frame. The input of this frame is not generated.
-local function setJoypadSequence(startFrame, endFrame, inputSequence)
-  finer(string.format("setJoypadSequence(%d, %d, ...)", startFrame, endFrame));
+local function setInputSequence(startFrame, endFrame, inputSequence)
+  finer(string.format("setInputSequence(%d, %d, ...)", startFrame, endFrame));
 
   -- Set the playback frame to startFrame
   -- to avoid the "cannot resume non-suspended coroutine" error.
@@ -164,8 +164,8 @@ end
 --- Gets the sequence of input (the combinations of pushed buttons) from the TAS Editor
 -- @param #number startFrame Frame number of the start frame.
 -- @param #number endFrame Frame number of the end frame. The input of this frame is not set.
-local function getJoypadSequence(startFrame, endFrame)
-  finer("getJoypadSequence()");
+local function getInputSequence(startFrame, endFrame)
+  finer("getInputSequence()");
 
   inputSequence = {};
   for frame = startFrame, endFrame - 1 do
@@ -211,7 +211,7 @@ end
 local function generateInitialState(startFrame, endFrame)
   finer("generateInitialState()");
 
-  local inputSequence = getJoypadSequence(startFrame, endFrame);
+  local inputSequence = getInputSequence(startFrame, endFrame);
   return {
     startFrame = startFrame,
     endFrame = endFrame,
@@ -246,7 +246,7 @@ local function generateNeighborState(state)
     if mode == 1 then
       -- Change a input in inputSequence.
       local frame = getRandomFrame(startFrame, endFrame);
-      local input = generateRandomJoypad();
+      local input = generateRandomInput();
       if state.inputSequence[frame] ~= input then
         info(string.format("Change frame:%d %d -> %d", frame, state.inputSequence[frame], input));
         local inputSequence = copytable(state.inputSequence);
@@ -299,7 +299,7 @@ local function generateNeighborState(state)
     elseif mode == 4 then
       -- Insert a input.
       local insertionFrame = getRandomFrame(startFrame, endFrame);
-      local input = generateRandomJoypad();
+      local input = generateRandomInput();
       info(string.format("Insert frame:%d input:%d", insertionFrame, input));
       local inputSequence = copytable(state.inputSequence);
       for frame = endFrame - 1, insertionFrame + 1, -1 do
@@ -315,7 +315,7 @@ local function generateNeighborState(state)
     elseif mode == 5 then
       -- Remove a input.
       local removedFrame = getRandomFrame(startFrame, endFrame);
-      local input = generateRandomJoypad();
+      local input = generateRandomInput();
       info(string.format("Remove frame:%d input:%d", removedFrame, input));
       local inputSequence = copytable(state.inputSequence);
       for frame = removedFrame, endFrame - 2 do
@@ -345,7 +345,7 @@ local function calculateEnergy(state)
 
   local startFrame = state.startFrame;
   local endFrame = state.endFrame;
-  setJoypadSequence(startFrame, endFrame, state.inputSequence);
+  setInputSequence(startFrame, endFrame, state.inputSequence);
   
   finest("taseditor.setplayback(startFrame);");
   taseditor.setplayback(startFrame);
@@ -463,27 +463,27 @@ end
 --------------------------------------------------------------------------------
 
 --local duration = 60 * 10;
---local inputSequence = generateRandomJoypadSequence(START_FRAME, START_FRAME + duration);
---setJoypadSequence(START_FRAME, START_FRAME + duration, inputSequence);
+--local inputSequence = generateRandomInputSequence(START_FRAME, START_FRAME + duration);
+--setInputSequence(START_FRAME, START_FRAME + duration, inputSequence);
 --anneal(START_FRAME, START_FRAME + duration);
 
---local initialJoypadSequence = generateRandomJoypadSequence(initialFrame, initialFrame + SEARCH_WINDOW_SIZE);
---setJoypadSequence(initialFrame, initialFrame + SEARCH_WINDOW_SIZE, initialJoypadSequence);
+--local initialInputSequence = generateRandomInputSequence(initialFrame, initialFrame + SEARCH_WINDOW_SIZE);
+--setInputSequence(initialFrame, initialFrame + SEARCH_WINDOW_SIZE, initialInputSequence);
 finest("emu.speedmode();");
 emu.speedmode("turbo");
 emu.speedmode("maximum");
 
---local initialJoypadSequence = generateRandomJoypadSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE);
---setJoypadSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE, initialJoypadSequence);
+--local initialInputSequence = generateRandomInputSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE);
+--setInputSequence(START_FRAME, START_FRAME + SEARCH_WINDOW_SIZE, initialInputSequence);
 for step = 0, 0xffff do
   local startFrame = START_FRAME + SEARCH_STEP * step;
   local endFrame = startFrame + SEARCH_WINDOW_SIZE;
   info(string.format("step:%d startFrame:%d endFrame:%d", step, startFrame, endFrame));
-  local inputSequence = generateRandomJoypadSequence(endFrame - SEARCH_STEP, endFrame);
-  setJoypadSequence(endFrame - SEARCH_STEP, endFrame, inputSequence);
+  local inputSequence = generateRandomInputSequence(endFrame - SEARCH_STEP, endFrame);
+  setInputSequence(endFrame - SEARCH_STEP, endFrame, inputSequence);
   local state = anneal(startFrame, endFrame);
   
-  setJoypadSequence(startFrame, endFrame, state.inputSequence)
+  setInputSequence(startFrame, endFrame, state.inputSequence)
 
   -- Playback all the frames to avoid pause.
   finest("taseditor.setplayback(startFrame);");
