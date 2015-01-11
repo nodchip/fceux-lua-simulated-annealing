@@ -430,6 +430,73 @@ local function calculateEnergy(state)
 --  local x = memory.readbyte(0x00c3);
 --  local y = memory.readbyte(0x00c4);
 --  return -100.0 * endFrame + math.abs(x - 120) + math.abs(y - 200);
+
+  -- TwinBee 3: Poko Poko Daimaō  
+--  for frame = startFrame, endFrame - 1 do
+--    finest("emu.frameadvance();");
+--    emu.frameadvance();
+--    finest("emu.frameadvance(); exit");
+--    
+--    local death1 = memory.readbyte(0x014a);
+--    if death1 ~= 0 and death1 ~= 128 then
+--      info("death1", death1);
+--      return -1e4 * frame + 1e6;
+--    end
+--    
+--    local death2 = memory.readbyte(0x014b);
+--    if death2 ~= 0 and death2 ~= 128 then
+--      info("death2", death2);
+--      return -1e4 * frame + 1e6;
+--    end
+--  end
+--
+--  local score1 = (memory.readbyte(0x07e4) % 8) * 1
+--    + math.floor(memory.readbyte(0x07e4) / 8) * 10
+--    + (memory.readbyte(0x07e5) % 8) * 100
+--    + math.floor(memory.readbyte(0x07e5) / 8) * 1000
+--    + (memory.readbyte(0x07e6) % 8) * 10000
+--    + math.floor(memory.readbyte(0x07e6) / 8) * 100000;
+--  local score2 = (memory.readbyte(0x07e8) % 8) * 1
+--    + math.floor(memory.readbyte(0x07e8) / 8) * 10
+--    + (memory.readbyte(0x07e9) % 8) * 100
+--    + math.floor(memory.readbyte(0x07e9) / 8) * 1000
+--    + (memory.readbyte(0x07ea) % 8) * 10000
+--    + math.floor(memory.readbyte(0x07ea) / 8) * 100000;
+--    
+--  local x1 = memory.readbyte(0x0460);
+--  local y1 = memory.readbyte(0x0430);
+--  
+--  local x2 = memory.readbyte(0x0461);
+--  local y2 = memory.readbyte(0x0431);
+--  
+--  local weapon1 = memory.readbyte(0x0146);
+--  local weapon2 = memory.readbyte(0x0147);
+--  
+--  local dummy1 = memory.readbyte(0x016c);
+--  local dummy2 = memory.readbyte(0x016d);
+--
+--  local speed1 = memory.readbyte(0x054c);
+--  local speed2 = memory.readbyte(0x054d);
+--  
+--  local arm1 = memory.readbyte(0x014c);
+--  local arm2 = memory.readbyte(0x014d);
+--  
+--  return -1e4 * endFrame
+--    - score1
+--    - score2
+--    + math.abs(x1 - 0x60)
+--    + math.abs(y1 - 0xb0)
+--    + math.abs(x2 - 0xa0)
+--    + math.abs(y2 - 0xb0)
+--    - 1e6 * weapon1
+--    - 1e6 * weapon2
+--    - 1e6 * dummy1
+--    - 1e6 * dummy2
+--    - 1e6 * math.abs(speed1 - 2)
+--    - 1e6 * math.abs(speed2 - 2)
+--    - 1e6 * arm1
+--    - 1e6 * arm2
+--    ;
 end
 
 --- Applies Simulated Annealing between startFrame (inclusive) and endFrame (eclusive)
